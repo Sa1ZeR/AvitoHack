@@ -8,6 +8,6 @@ public class MapMatrix {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(name = "name", nullable = false, length = 18)
+    @Column(name = "name", nullable = false, length = 18, unique = true)
     private String name;
 }
