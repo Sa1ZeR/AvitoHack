@@ -17,9 +17,9 @@ public class DiscountSegment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @ManyToOne(fetch = FetchType.LAZY, targetEntity = User.class)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, referencedColumnName = "id")
-    private List<User> users = new ArrayList<>();
+    private User users;
     @Column(name = "segment", nullable = false)
     private Long segment;
 }
