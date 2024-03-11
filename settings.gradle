@@ -1,3 +1,4 @@
 rootProject.name = 'AvitoHack'
 include 'analytic-ui'
+include 'matrix-service'
 
