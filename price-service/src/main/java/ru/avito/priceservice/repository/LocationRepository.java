@@ -7,8 +7,8 @@ import ru.avito.priceservice.entity.Location;
 import java.util.Optional;
 
 public interface LocationRepository extends JpaRepository<Location, Long> {
-    @Query("SELECT l FROM location l WHERE l.parent_id = :id")
-    Optional<Location> findByParentId(Long id);
+    @Query("SELECT l FROM Location l WHERE l.location.id = :parentId")
+    Optional<Location> findByParentId(Long parentId);
 
     Optional<Location> findByLocation(Location location);
 }
