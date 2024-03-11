@@ -1,0 +1,19 @@
+package ru.avito.priceservice.api;
+
+import lombok.AllArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import ru.avito.priceservice.dto.RequestPrice;
+import ru.avito.priceservice.dto.ResponsePrice;
+
+@AllArgsConstructor
+@RestController
+@RequestMapping("/api/v1/price")
+public class PriceController {
+    @GetMapping
+    public ResponsePrice price(@RequestBody RequestPrice requestPrice) {
+        return new ResponsePrice(1L,1L,1L,1L,1L);
+    }
+}
