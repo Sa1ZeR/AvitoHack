@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.sql.Timestamp;
+
 @Setter
 @Getter
 @NoArgsConstructor
@@ -16,4 +18,6 @@ public class MapMatrix {
     private Long id;
     @Column(name = "name", nullable = false, length = 18, unique = true)
     private String name;
+    @Column(name = "creation_date", nullable = false)
+    private Timestamp creationDate;
 }
