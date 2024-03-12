@@ -26,7 +26,7 @@ public class PriceService {
     private final LocationRepository locationRepository;
     private final DiscountSegmentRepository segmentRepository;
 
-    @Transactional
+    @Transactional(readOnly = true)
     public ResponsePrice calcPrice(RequestPrice request) {
         List<DiscountSegment> segmentsByUser = segmentRepository.findByUser(request.userId());
         Storage currentStorage = storageService.getCurrentStorage();
