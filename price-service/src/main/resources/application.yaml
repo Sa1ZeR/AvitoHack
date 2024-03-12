@@ -2,14 +2,10 @@ server:
   port: 8000
 
 spring:
-  sql:
-    init:
-      mode: always
-      data-locations: classpath:db/*.sql
   jpa:
     open-in-view: true
     hibernate:
-      ddl-auto: create
+      ddl-auto: validate
     database: POSTGRESQL
     properties:
       hibernate:
@@ -22,8 +18,5 @@ spring:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:postgres}
     username: ${POSTGRES_NAME:postgres}
     password: ${POSTGRES_PASSWORD:123}
-    platform: postgres
-    testWhileIdle: true
-    validationQuery: SELECT 1
   database:
     driverClassName: org.postgresql.Driver
