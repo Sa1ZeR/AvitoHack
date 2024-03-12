@@ -52,14 +52,7 @@ public class PriceService {
             //todo поиск наверх
 
             //todo получать id матрицы из кэша или чет такое, ибо будет накладно
-            Long matrixId;
-            if (matrixIdCache.containsKey(currentStorage.baseline())) {
-                matrixId = matrixIdCache.get(currentStorage.baseline());
-            } else {
-                matrixId = mapMatrixRepository.findByName(currentStorage.baseline())
-                        .map(MapMatrix::getId)
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "matrix not found"));
-            }
+            var matrixId = getMatrixId(currentStorage);
             return new ResponsePrice(priceByMatrix, request.locationId(), request.microCategoryId(), matrixId, null);
         } else {
 //            Optional<Long> priceByMatrix = matrixDao.findPriceByDiscount();
@@ -68,5 +61,17 @@ public class PriceService {
 
         }
         return new ResponsePrice(1L, 1L, 1L, 1L, 1L);
+    }
+
+    private Long getMatrixId(Storage currentStorage) {
+        Long matrixId;
+        if (matrixIdCache.containsKey(currentStorage.baseline())) {
+            matrixId = matrixIdCache.get(currentStorage.baseline());
+        } else {
+            matrixId = mapMatrixRepository.findByName(currentStorage.baseline())
+                    .map(MapMatrix::getId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "matrix not found"));
+        }
+        return matrixId;
     }
 }
