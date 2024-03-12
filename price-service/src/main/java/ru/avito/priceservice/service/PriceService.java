@@ -1,5 +1,6 @@
 package ru.avito.priceservice.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -10,10 +11,15 @@ import ru.avito.priceservice.dto.RequestPrice;
 import ru.avito.priceservice.dto.ResponsePrice;
 import ru.avito.priceservice.dto.Storage;
 import ru.avito.priceservice.entity.DiscountSegment;
+import ru.avito.priceservice.entity.MapMatrix;
 import ru.avito.priceservice.repository.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +31,14 @@ public class PriceService {
     private final CategoryRepository categoryRepository;
     private final LocationRepository locationRepository;
     private final DiscountSegmentRepository segmentRepository;
+    private Map<String, Long> matrixIdCache;
+
+    @PostConstruct
+    public void init() {
+        var matrices = mapMatrixRepository.findAll();
+        matrixIdCache = matrices.stream()
+                .collect(Collectors.toMap(MapMatrix::getName, MapMatrix::getId));
+    }
 
     @Transactional(readOnly = true)
     public ResponsePrice calcPrice(RequestPrice request) {
@@ -32,13 +46,21 @@ public class PriceService {
         Storage currentStorage = storageService.getCurrentStorage();
 
         //сегменты не найдены изем из baseline матрицы
-        if(segmentsByUser.size() == 0)  {
-            Optional<Long> priceByMatrix = matrixDao.findPriceByMatrix(currentStorage.baseline(), request.microCategoryId(), request.locationId());
+        if(segmentsByUser.isEmpty())  {
+            Long priceByMatrix = matrixDao.findPriceByMatrix(currentStorage.baseline(), request.microCategoryId(), request.locationId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Internal error"));
             //todo поиск наверх
-            if(priceByMatrix.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Internal error"); //цена всегда должна быть найдена
 
             //todo получать id матрицы из кэша или чет такое, ибо будет накладно
-            return new ResponsePrice(priceByMatrix.get(), request.locationId(), request.microCategoryId(), mapMatrixRepository.findByName(currentStorage.baseline()).get().getId(), null);
+            Long matrixId;
+            if (matrixIdCache.containsKey(currentStorage.baseline())) {
+                matrixId = matrixIdCache.get(currentStorage.baseline());
+            } else {
+                matrixId = mapMatrixRepository.findByName(currentStorage.baseline())
+                        .map(MapMatrix::getId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "matrix not found"));
+            }
+            return new ResponsePrice(priceByMatrix, request.locationId(), request.microCategoryId(), matrixId, null);
         } else {
 //            Optional<Long> priceByMatrix = matrixDao.findPriceByDiscount();
 //            if(priceByMatrix.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Internal error"); //цена всегда должна быть найдена
