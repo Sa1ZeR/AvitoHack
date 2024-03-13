@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.avito.priceservice.dto.Storage;
+import ru.avito.priceservice.entity.StorageFile;
 import ru.avito.priceservice.errors.StorageFileNotFoundError;
 import ru.avito.priceservice.errors.YamlServerProcessingError;
 import ru.avito.priceservice.repository.StorageRepository;
@@ -17,9 +18,7 @@ public class StorageService {
     private final ObjectMapper yamlObjectMapper;
 
     public Storage getCurrentStorage() {
-        //TODO офк у нас всегда один файл поэтому он находится под индексом 1
-        // конечно можно добавить несколько и возвращать последнюю, но такого кейса не было
-        var storageFile = repository.findById(1L)
+        var storageFile = repository.findLast()
                 .orElseThrow(StorageFileNotFoundError::new);
         var yaml = storageFile.getFile();
         Storage storage;
@@ -29,5 +28,9 @@ public class StorageService {
             throw new YamlServerProcessingError(e);
         }
         return storage;
+    }
+
+    public void add(String storage) {
+        repository.save(StorageFile.builder().file(storage).build());
     }
 }

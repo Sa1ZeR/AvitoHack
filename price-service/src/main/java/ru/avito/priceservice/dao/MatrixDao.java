@@ -10,13 +10,13 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class MatrixDao {
 
-    private static final String MATRIX_SQL = "SELECT price from %s where = microcategory_id = ? and location_id = ?";
-    private static final String DISCOUNT_SQL = "SELECT price from %s where = microcategory_id = ? and location_id = ?";
+    private static final String MATRIX_SQL = "SELECT price from %s where microcategory_id = ? and location_id = ?";
+    private static final String DISCOUNT_SQL = "SELECT price from %s where microcategory_id = ? and location_id = ?";
 
     private final JdbcTemplate jdbcTemplate;
 
-    public Optional<Long> findPriceByMatrix(String matrixId, Long microCategory, Long location) {
-        return jdbcTemplate.query(String.format(MATRIX_SQL, matrixId),
+    public Optional<Long> findPriceByMatrix(String matrixTableName, Long microCategory, Long location) {
+        return jdbcTemplate.query(String.format(MATRIX_SQL, matrixTableName),
                 (rs, numRows) -> rs.getLong("price"),
                 microCategory, location).stream().findFirst();
     }

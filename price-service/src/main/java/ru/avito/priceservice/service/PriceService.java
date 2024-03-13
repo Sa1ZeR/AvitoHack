@@ -12,13 +12,16 @@ import ru.avito.priceservice.dto.ResponsePrice;
 import ru.avito.priceservice.dto.Storage;
 import ru.avito.priceservice.entity.DiscountSegment;
 import ru.avito.priceservice.entity.MapMatrix;
-import ru.avito.priceservice.repository.*;
+import ru.avito.priceservice.errors.LocationNotFoundError;
+import ru.avito.priceservice.repository.CategoryRepository;
+import ru.avito.priceservice.repository.DiscountSegmentRepository;
+import ru.avito.priceservice.repository.LocationRepository;
+import ru.avito.priceservice.repository.MapMatrixRepository;
 
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,25 +45,55 @@ public class PriceService {
 
     @Transactional(readOnly = true)
     public ResponsePrice calcPrice(RequestPrice request) {
-        List<DiscountSegment> segmentsByUser = segmentRepository.findByUser(request.userId());
+        var segments = segmentRepository.findByUser(request.userId()).stream()
+                .map(DiscountSegment::getSegment)
+                .sorted(Comparator.reverseOrder())
+                .toList();
         Storage currentStorage = storageService.getCurrentStorage();
 
-        //сегменты не найдены изем из baseline матрицы
-        if(segmentsByUser.isEmpty())  {
-            Long priceByMatrix = matrixDao.findPriceByMatrix(currentStorage.baseline(), request.microCategoryId(), request.locationId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Internal error"));
-            //todo поиск наверх
-
-            //todo получать id матрицы из кэша или чет такое, ибо будет накладно
-            var matrixId = getMatrixId(currentStorage);
-            return new ResponsePrice(priceByMatrix, request.locationId(), request.microCategoryId(), matrixId, null);
-        } else {
-//            Optional<Long> priceByMatrix = matrixDao.findPriceByDiscount();
-//            if(priceByMatrix.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Internal error"); //цена всегда должна быть найдена
-
-
+        //TODO если сегменты есть, то надо проверить есть ли такие сегменты в сторэдже
+        Long hasSegmentInDiscountStorage = null;
+        for (var segment : segments) {
+            if (currentStorage.discounts().containsKey(segment)) {
+                hasSegmentInDiscountStorage = segment;
+                break;
+            }
         }
-        return new ResponsePrice(1L, 1L, 1L, 1L, 1L);
+        //Если сегментов нет или таких сегментов нет в сторэдже, то ищем по baseline матрице
+        var microCategoryId = request.microCategoryId();
+        var locationId = request.locationId();
+        if(segments.isEmpty() || hasSegmentInDiscountStorage == null)  {
+            var price = getPriceByMatrix(request, currentStorage.baseline(), microCategoryId, locationId);
+            var matrixId = getMatrixId(currentStorage);
+            return new ResponsePrice(price, request.locationId(), request.microCategoryId(), matrixId, null);
+        }
+        var discountMatrix = currentStorage.discounts().get(hasSegmentInDiscountStorage);
+        var price = getPriceByMatrix(request, discountMatrix, microCategoryId, locationId);
+        var matrixId = getMatrixId(currentStorage);
+        return new ResponsePrice(price, request.locationId(), request.microCategoryId(), matrixId, hasSegmentInDiscountStorage);
+    }
+
+    private Long getPriceByMatrix(RequestPrice request, String matrixTableName, Long microCategoryId, Long locationId) {
+        Optional<Long> priceByMatrix;
+        do {
+            priceByMatrix = matrixDao.findPriceByMatrix(
+                    matrixTableName,
+                    microCategoryId,
+                    locationId
+            );
+            if (priceByMatrix.isEmpty()) {
+                var parentId = categoryRepository.findParentIdById(microCategoryId)
+                        .orElse(null);
+                if (parentId != null) {
+                    microCategoryId = parentId;
+                } else {
+                    locationId = locationRepository.findParentIdById(locationId)
+                            .orElseThrow(LocationNotFoundError::new);
+                    microCategoryId = request.microCategoryId();
+                }
+            }
+        } while (priceByMatrix.isEmpty());
+        return priceByMatrix.get();
     }
 
     private Long getMatrixId(Storage currentStorage) {

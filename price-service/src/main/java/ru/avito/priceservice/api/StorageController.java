@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.avito.priceservice.dto.Storage;
 import ru.avito.priceservice.errors.YamlBadFormatError;
+import ru.avito.priceservice.service.StorageService;
 
 @RequiredArgsConstructor
 @RestController
@@ -19,17 +20,17 @@ import ru.avito.priceservice.errors.YamlBadFormatError;
 public class StorageController {
 
     private final ObjectMapper yamlObjectMapper;
+    private final StorageService service;
 
     @PostMapping
     public ResponseEntity<?> storage(@RequestBody String storageYaml) {
-        Storage storage = null;
         try {
-            storage = yamlObjectMapper.readValue(storageYaml, Storage.class);
+            yamlObjectMapper.readValue(storageYaml, Storage.class);
         } catch (JsonProcessingException e) {
             throw new YamlBadFormatError(e);
         }
 
-
+        service.add(storageYaml);
 
         return ResponseEntity.status(HttpStatus.CREATED).body("Storage changed");
     }

@@ -48,6 +48,7 @@ INSERT INTO matrix (name) VALUES
 ('baseline_matrix_1'),
 ('baseline_matrix_2'),
 ('baseline_matrix_3'),
+('baseline_matrix_4'),
 ('discount_matrix_1'),
 ('discount_matrix_2'),
 ('discount_matrix_3');

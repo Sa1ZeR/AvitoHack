@@ -11,4 +11,8 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     Optional<Category> findByParentId(Long parentId);
 
     Optional<Category> findByCategory(Category category);
+
+
+    @Query(value = "SELECT parent_id FROM category WHERE id = ?", nativeQuery = true)
+    Optional<Long> findParentIdById(Long id);
 }
