@@ -7,19 +7,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import ru.avito.priceservice.dao.MatrixDao;
-import ru.avito.priceservice.dto.RequestPrice;
 import ru.avito.priceservice.dto.ResponsePrice;
 import ru.avito.priceservice.dto.Storage;
 import ru.avito.priceservice.entity.DiscountSegment;
 import ru.avito.priceservice.entity.MapMatrix;
-import ru.avito.priceservice.errors.LocationNotFoundError;
+import ru.avito.priceservice.errors.PriceNotFoundError;
 import ru.avito.priceservice.repository.CategoryRepository;
 import ru.avito.priceservice.repository.DiscountSegmentRepository;
 import ru.avito.priceservice.repository.LocationRepository;
 import ru.avito.priceservice.repository.MapMatrixRepository;
 
 import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -44,36 +42,51 @@ public class PriceService {
     }
 
     @Transactional(readOnly = true)
-    public ResponsePrice calcPrice(RequestPrice request) {
-        var segments = segmentRepository.findByUser(request.userId()).stream()
+    public ResponsePrice calcPrice(Long locationId, Long microCategoryId, Long userId) {
+        var segments = segmentRepository.findByUser(userId).stream()
                 .map(DiscountSegment::getSegment)
                 .sorted(Comparator.reverseOrder())
                 .toList();
-        Storage currentStorage = storageService.getCurrentStorage();
+        var currentStorage = storageService.getCurrentStorage();
 
-        //TODO если сегменты есть, то надо проверить есть ли такие сегменты в сторэдже
-        Long hasSegmentInDiscountStorage = null;
-        for (var segment : segments) {
-            if (currentStorage.discounts().containsKey(segment)) {
-                hasSegmentInDiscountStorage = segment;
+        //если сегменты есть, то надо проверить есть ли такие сегменты в сторэдже
+        var discountSegments = segments.stream()
+                .filter(segment -> currentStorage.discounts().containsKey(segment))
+                .toList();
+
+        //Если сегментов нет или таких сегментов нет в сторэдже, то ищем по baseline матрице
+        if(segments.isEmpty() || discountSegments.isEmpty())  {
+            var result = getPriceByMatrix(locationId, microCategoryId, currentStorage.baseline())
+                    .orElseThrow(PriceNotFoundError::new);
+            var matrixId = getMatrixId(currentStorage);
+            return new ResponsePrice(result.price(), result.locationId(), result.microCategoryId(), matrixId, null);
+        }
+
+        //сперва ищем цену в скидочных матрицах
+        Long userSegment = null;
+        Result result = null;
+        Optional<Result> discountOpt = Optional.empty();
+        for (var segment : discountSegments) {
+            discountOpt = getPriceByMatrix(locationId, microCategoryId, currentStorage.discounts().get(segment));
+            if (discountOpt.isPresent()) {
+                result = discountOpt.get();
+                userSegment = segment;
                 break;
             }
         }
-        //Если сегментов нет или таких сегментов нет в сторэдже, то ищем по baseline матрице
-        var microCategoryId = request.microCategoryId();
-        var locationId = request.locationId();
-        if(segments.isEmpty() || hasSegmentInDiscountStorage == null)  {
-            var price = getPriceByMatrix(request, currentStorage.baseline(), microCategoryId, locationId);
-            var matrixId = getMatrixId(currentStorage);
-            return new ResponsePrice(price, request.locationId(), request.microCategoryId(), matrixId, null);
+
+        //если цены в скидочных матрицах нет, то переходим в основную матрицу
+        if (discountOpt.isEmpty()) {
+            result = getPriceByMatrix(locationId, microCategoryId, currentStorage.baseline())
+                    .orElseThrow(PriceNotFoundError::new);
         }
-        var discountMatrix = currentStorage.discounts().get(hasSegmentInDiscountStorage);
-        var price = getPriceByMatrix(request, discountMatrix, microCategoryId, locationId);
+
         var matrixId = getMatrixId(currentStorage);
-        return new ResponsePrice(price, request.locationId(), request.microCategoryId(), matrixId, hasSegmentInDiscountStorage);
+        return new ResponsePrice(result.price(), result.locationId(), result.microCategoryId(), matrixId, userSegment);
     }
 
-    private Long getPriceByMatrix(RequestPrice request, String matrixTableName, Long microCategoryId, Long locationId) {
+    private Optional<Result> getPriceByMatrix(Long locationId, Long microCategoryId, String matrixTableName) {
+        long startCategory = microCategoryId;
         Optional<Long> priceByMatrix;
         do {
             priceByMatrix = matrixDao.findPriceByMatrix(
@@ -88,13 +101,18 @@ public class PriceService {
                     microCategoryId = parentId;
                 } else {
                     locationId = locationRepository.findParentIdById(locationId)
-                            .orElseThrow(LocationNotFoundError::new);
-                    microCategoryId = request.microCategoryId();
+                            .orElse(null);
+                    if (locationId == null) {
+                        return Optional.empty();
+                    }
+                    microCategoryId = startCategory;
                 }
             }
         } while (priceByMatrix.isEmpty());
-        return priceByMatrix.get();
+        return Optional.of(new Result(priceByMatrix.get(), locationId, microCategoryId));
     }
+
+    private record Result(Long price, Long locationId, Long microCategoryId) {}
 
     private Long getMatrixId(Storage currentStorage) {
         Long matrixId;

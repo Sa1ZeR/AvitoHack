@@ -38,6 +38,6 @@ public class PriceController {
      */
     @GetMapping
     public ResponsePrice price(@RequestBody RequestPrice request) {
-        return priceService.calcPrice(request);
+        return priceService.calcPrice(request.locationId(), request.microCategoryId(), request.userId());
     }
 }
