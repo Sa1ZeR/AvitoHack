@@ -85,33 +85,14 @@ public class PriceService {
         for (var segment : discountSegments) {
             var matrixTableName = currentStorage.discounts().get(segment);
 
-            var categoryParentIds = new ArrayList<>(categoryParent);
-            var locationParentIds = new ArrayList<>(locationParent);
+            var resultIds = getMatrixResultIds(locationId, microCategoryId, segment, categoryParent, locationParent);
 
-            var categoryIds = cache.categoryIds(segment);
-            var locationsIds = cache.locationsIds(segment);
-
-            if (locationsIds == null) {
-                var contains = categoryIds.contains(microCategoryId);
-                if (!contains) {
-                    categoryParentIds.removeIf(el -> !categoryIds.contains(el));
-                }
-            } else if (categoryIds == null) {
-                var contains = locationsIds.contains(locationId);
-                if (!contains) {
-                    locationParentIds.removeIf(el -> !locationsIds.contains(el));
-                }
-            } else {
-                locationParentIds.removeIf(el -> !locationsIds.contains(el));
-                categoryParentIds.removeIf(el -> !categoryIds.contains(el));
-            }
-
-            if (categoryParentIds.isEmpty() || locationParentIds.isEmpty()) {
+            if (resultIds.categoryParentIds().isEmpty() || resultIds.locationParentIds().isEmpty()) {
                 continue;
             }
 
-            microCategoryId = categoryParentIds.getFirst();
-            locationId = locationParentIds.getFirst();
+            microCategoryId = resultIds.categoryParentIds().getFirst();
+            locationId = resultIds.locationParentIds().getFirst();
 
             discountOpt = getPriceByMatrix(locationId, microCategoryId, matrixTableName);
             if (discountOpt.isPresent()) {
@@ -129,6 +110,33 @@ public class PriceService {
 
         var matrixId = getMatrixId(currentStorage);
         return new ResponsePrice(result.price(), result.locationId(), result.microCategoryId(), matrixId, userSegment);
+    }
+
+    private MatrixResultIds getMatrixResultIds(Long locationId, Long microCategoryId, Long segment, List<Long> categoryParent, List<Long> locationParent) {
+        var categoryParentIds = new ArrayList<>(categoryParent);
+        var locationParentIds = new ArrayList<>(locationParent);
+
+        var categoryIds = cache.categoryIds(segment);
+        var locationsIds = cache.locationsIds(segment);
+
+        if (locationsIds == null) {
+            var contains = categoryIds.contains(microCategoryId);
+            if (!contains) {
+                categoryParentIds.removeIf(el -> !categoryIds.contains(el));
+            }
+        } else if (categoryIds == null) {
+            var contains = locationsIds.contains(locationId);
+            if (!contains) {
+                locationParentIds.removeIf(el -> !locationsIds.contains(el));
+            }
+        } else {
+            locationParentIds.removeIf(el -> !locationsIds.contains(el));
+            categoryParentIds.removeIf(el -> !categoryIds.contains(el));
+        }
+        return new MatrixResultIds(categoryParentIds, locationParentIds);
+    }
+
+    private record MatrixResultIds(ArrayList<Long> categoryParentIds, ArrayList<Long> locationParentIds) {
     }
 
     private List<Long> getCategoryTree(Long startId) {
