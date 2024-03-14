@@ -80,12 +80,14 @@ public class PriceService {
         Long userSegment = null;
         Result result = null;
         Optional<Result> discountOpt = Optional.empty();
+        //Получаем дерево айдишников от основной до рутовой
         var categoryParent = getCategoryTree(microCategoryId);
         var locationParent = getLocationTree(locationId);
         for (var segment : discountSegments) {
             var matrixTableName = currentStorage.discounts().get(segment);
 
-            var resultIds = getMatrixResultIds(locationId, microCategoryId, segment, categoryParent, locationParent);
+            //отсеиваем все айдишники из дерава категории и локации, которых нет в матрице
+            var resultIds = getMatrixResultIds(locationId, microCategoryId, segment, categoryParent, locationParent, matrixTableName);
 
             if (resultIds.categoryParentIds().isEmpty() || resultIds.locationParentIds().isEmpty()) {
                 continue;
@@ -112,7 +114,7 @@ public class PriceService {
         return new ResponsePrice(result.price(), result.locationId(), result.microCategoryId(), matrixId, userSegment);
     }
 
-    private MatrixResultIds getMatrixResultIds(Long locationId, Long microCategoryId, Long segment, List<Long> categoryParent, List<Long> locationParent) {
+    private MatrixResultIds getMatrixResultIds(Long locationId, Long microCategoryId, Long segment, List<Long> categoryParent, List<Long> locationParent, String matrixTableName) {
         var categoryParentIds = new ArrayList<>(categoryParent);
         var locationParentIds = new ArrayList<>(locationParent);
 
@@ -123,11 +125,25 @@ public class PriceService {
             var contains = categoryIds.contains(microCategoryId);
             if (!contains) {
                 categoryParentIds.removeIf(el -> !categoryIds.contains(el));
+                if (!categoryParentIds.isEmpty()) {
+                    var list = matrixDao.findDistinctLocationIds(matrixTableName);
+                    locationParentIds.removeIf(el -> !list.contains(el));
+                }
+            } else {
+                var list = matrixDao.findDistinctLocationIds(matrixTableName);
+                locationParentIds.removeIf(el -> !list.contains(el));
             }
         } else if (categoryIds == null) {
             var contains = locationsIds.contains(locationId);
             if (!contains) {
                 locationParentIds.removeIf(el -> !locationsIds.contains(el));
+                if (!locationParentIds.isEmpty()) {
+                    var list = matrixDao.findDistinctCategoryIds(matrixTableName);
+                    categoryParentIds.removeIf(el -> !list.contains(el));
+                }
+            } else {
+                var list = matrixDao.findDistinctCategoryIds(matrixTableName);
+                categoryParentIds.removeIf(el -> !list.contains(el));
             }
         } else {
             locationParentIds.removeIf(el -> !locationsIds.contains(el));
@@ -136,7 +152,7 @@ public class PriceService {
         return new MatrixResultIds(categoryParentIds, locationParentIds);
     }
 
-    private record MatrixResultIds(ArrayList<Long> categoryParentIds, ArrayList<Long> locationParentIds) {
+    private record MatrixResultIds(List<Long> categoryParentIds, List<Long> locationParentIds) {
     }
 
     private List<Long> getCategoryTree(Long startId) {
@@ -163,10 +179,9 @@ public class PriceService {
                     locationId
             );
             if (priceByMatrix.isEmpty()) {
-                var parentId = categoryRepository.findParentIdById(microCategoryId)
-                        .orElse(null);
-                if (parentId != null) {
-                    microCategoryId = parentId;
+                var parentId = categoryRepository.findParentIdById(microCategoryId);
+                if (parentId.isPresent()) {
+                    microCategoryId = parentId.get();
                 } else {
                     locationId = locationRepository.findParentIdById(locationId)
                             .orElse(null);
