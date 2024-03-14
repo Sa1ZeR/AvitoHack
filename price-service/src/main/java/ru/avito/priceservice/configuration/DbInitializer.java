@@ -19,7 +19,7 @@ public class DbInitializer {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Bean
+    //@Bean
     public CommandLineRunner commandLineRunner() {
         return args -> {
             try (Statement statement = jdbcTemplate.getDataSource().getConnection().createStatement()) {

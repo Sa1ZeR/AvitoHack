@@ -10,9 +10,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import ru.avito.priceservice.cache.Cache;
+import ru.avito.priceservice.dao.MatrixDao;
 import ru.avito.priceservice.dto.Storage;
 import ru.avito.priceservice.errors.YamlBadFormatError;
 import ru.avito.priceservice.service.StorageService;
+
+import java.util.List;
+import java.util.Map;
 
 @RequiredArgsConstructor
 @RestController
@@ -21,11 +26,23 @@ public class StorageController {
 
     private final ObjectMapper yamlObjectMapper;
     private final StorageService service;
+    private final Cache cache;
+    private final MatrixDao matrixDao;
 
     @PostMapping
     public ResponseEntity<?> storage(@RequestBody String storageYaml) {
         try {
-            yamlObjectMapper.readValue(storageYaml, Storage.class);
+            var storage = yamlObjectMapper.readValue(storageYaml, Storage.class);
+            var discountsMatrix = storage.discounts().entrySet();
+            for (var entry : discountsMatrix) {
+                var categoryIds = matrixDao.findDistinctCategoryIds(entry.getValue());
+                var locationIds = matrixDao.findDistinctLocationIds(entry.getValue());
+                if (categoryIds.size() < locationIds.size()) {
+                    cache.addIdsForCategories(entry.getKey(), categoryIds);
+                } else {
+                    cache.addIdsForLocations(entry.getKey(), locationIds);
+                }
+            }
         } catch (JsonProcessingException e) {
             throw new YamlBadFormatError(e);
         }
